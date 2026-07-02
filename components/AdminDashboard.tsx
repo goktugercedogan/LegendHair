@@ -1,7 +1,14 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Appointment, AppointmentStatus, TIME_SLOTS } from "@/lib/booking";
+import { Appointment, AppointmentStatus, TIME_SLOTS, validateAppointmentInput } from "@/lib/booking";
+import {
+  deleteBrowserDemoAppointment,
+  listBrowserDemoAppointments,
+  mergeDemoAppointments,
+  updateBrowserDemoAppointmentDateTime,
+  updateBrowserDemoAppointmentStatus
+} from "@/lib/demo-browser-store";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 const statusLabels: Record<AppointmentStatus, string> = {
@@ -58,8 +65,10 @@ export function AdminDashboard() {
       return;
     }
 
-    setAppointments(result.appointments);
-  }, [token]);
+    const serverAppointments = result.appointments as Appointment[];
+    const browserAppointments = supabase ? [] : listBrowserDemoAppointments();
+    setAppointments(mergeDemoAppointments(serverAppointments, browserAppointments));
+  }, [supabase, token]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -124,6 +133,15 @@ export function AdminDashboard() {
       body: JSON.stringify({ status })
     });
 
+    if (!supabase) {
+      const updated = updateBrowserDemoAppointmentStatus(id, status);
+
+      if (updated) {
+        await loadAppointments();
+        return;
+      }
+    }
+
     if (!response.ok) {
       setMessage("Status konnte nicht aktualisiert werden.");
       return;
@@ -156,6 +174,36 @@ export function AdminDashboard() {
     });
     const result = await response.json();
 
+    if (!supabase) {
+      const validationError = validateAppointmentInput({
+        customerName: editingAppointment.customerName,
+        phone: editingAppointment.phone,
+        email: editingAppointment.email,
+        service: editingAppointment.service,
+        appointmentDate: editDate,
+        startTime: editTime,
+        note: editingAppointment.note
+      });
+
+      if (validationError) {
+        setMessage(validationError);
+        return;
+      }
+
+      const localResult = updateBrowserDemoAppointmentDateTime(editingAppointment.id, editDate, editTime);
+
+      if (localResult.conflict) {
+        setMessage("Dieser Termin ist leider nicht verfügbar. Bitte wählen Sie eine andere Uhrzeit.");
+        return;
+      }
+
+      if (localResult.updated) {
+        setEditingAppointment(null);
+        await loadAppointments();
+        return;
+      }
+    }
+
     if (!response.ok) {
       setMessage(result.error || "Termin konnte nicht geändert werden.");
       return;
@@ -177,6 +225,16 @@ export function AdminDashboard() {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     const result = await response.json();
+
+    if (!supabase) {
+      const deleted = deleteBrowserDemoAppointment(deletingAppointment.id);
+
+      if (deleted) {
+        setDeletingAppointment(null);
+        await loadAppointments();
+        return;
+      }
+    }
 
     if (!response.ok) {
       setMessage(result.error || "Termin konnte nicht gelöscht werden.");

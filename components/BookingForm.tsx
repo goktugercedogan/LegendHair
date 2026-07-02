@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { SERVICES, TIME_SLOTS, isClosedDate, isPastDate, validateAppointmentInput } from "@/lib/booking";
+import { hasBrowserDemoAppointmentConflict, upsertBrowserDemoAppointment } from "@/lib/demo-browser-store";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 const initialState = {
   customerName: "",
@@ -14,6 +16,7 @@ const initialState = {
 };
 
 export function BookingForm() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [form, setForm] = useState(initialState);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
@@ -45,6 +48,13 @@ export function BookingForm() {
   async function createBooking() {
     setMessage("");
     setIsConfirmModalOpen(false);
+
+    if (!supabase && hasBrowserDemoAppointmentConflict(form.appointmentDate, form.startTime)) {
+      setMessageType("error");
+      setMessage("Dieser Termin ist leider nicht verfügbar. Bitte wählen Sie eine andere Uhrzeit.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const response = await fetch("/api/appointments", {
@@ -64,6 +74,11 @@ export function BookingForm() {
 
     setMessageType("success");
     setMessage("Vielen Dank. Ihre Terminanfrage wurde erfolgreich gespeichert.");
+
+    if (result.demo && result.appointment) {
+      upsertBrowserDemoAppointment(result.appointment);
+    }
+
     setIsSuccessModalOpen(true);
     setForm(initialState);
   }
