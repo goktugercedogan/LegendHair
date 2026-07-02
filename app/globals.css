@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #080706;
+  background: #fbfaf7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(200, 162, 74, 0.14), transparent 28rem),
+    #fbfaf7;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.gold-line {
+  background: linear-gradient(90deg, transparent, #c8a24a, transparent);
+  height: 1px;
+}
